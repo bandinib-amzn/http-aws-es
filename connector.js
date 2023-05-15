@@ -14,6 +14,7 @@
 const AWS = require('aws-sdk');
 const HttpConnector = require('elasticsearch/src/lib/connectors/http');
 const HttpClient = require('./src/node');
+const crypto = require('crypto');
 
 class HttpAmazonESConnector extends HttpConnector {
   constructor(host, config) {
@@ -30,6 +31,7 @@ class HttpAmazonESConnector extends HttpConnector {
     this.endpoint = endpoint;
     this.httpOptions = config.httpOptions || this.awsConfig.httpOptions;
     this.httpClient = new HttpClient();
+    this.service = config.service || "es";
   }
 
   request(params, cb) {
@@ -62,6 +64,12 @@ class HttpAmazonESConnector extends HttpConnector {
         const request = this.createRequest(params, reqParams);
         // Sign the request (Sigv4)
         this.signRequest(request, creds);
+
+        request.headers['x-amz-content-sha256'] = crypto
+        .createHash('sha256')
+        .update(request.body || '', 'utf8')
+        .digest('hex');
+        
         req = this.httpClient.handleRequest(request, this.httpOptions, done);
       })
       .catch(done);
@@ -101,7 +109,7 @@ class HttpAmazonESConnector extends HttpConnector {
   }
 
   signRequest(request, creds) {
-    const signer = new AWS.Signers.V4(request, 'es');
+    const signer = new AWS.Signers.V4(request, this.service);
     signer.addAuthorization(creds, new Date());
   }
 }
