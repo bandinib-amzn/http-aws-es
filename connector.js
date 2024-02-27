@@ -51,7 +51,7 @@ class HttpAmazonESConnector extends HttpConnector {
     };
 
     // load creds
-    this.getAWSCredentials()
+    this.getAWSCredentials(reqParams)
       .catch(e => {
         if (e && e.message) e.message = `AWS Credentials error: ${e.message}`;
         throw e;
@@ -77,7 +77,23 @@ class HttpAmazonESConnector extends HttpConnector {
     return cancel;
   }
 
-  getAWSCredentials() {
+  getAWSCredentials(request) {
+    if (request.headers.authorization) {
+      const encodedString = request.headers.authorization;
+      const awsAuthorizationHeader = Buffer.from(encodedString, 'base64').toString('utf-8');
+      const awsSigV4AuthOptions = awsAuthorizationHeader.split(':');
+      const region = awsSigV4AuthOptions[3];
+
+      this.awsConfig = new Config({
+        region,
+        credentials: sessionToken
+          ? new Credentials({ accessKeyId, secretAccessKey, sessionToken })
+          : new Credentials({ accessKeyId, secretAccessKey }),
+      });
+      this.service = awsSigV4AuthOptions[4];
+
+      delete request.headers.authorization;
+    }
     return new Promise((resolve, reject) => {
       this.awsConfig.getCredentials((err, creds) => {
         if (err) return reject(err);
